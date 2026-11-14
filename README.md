@@ -39,7 +39,7 @@ The model never invents quantities: it chooses among action IDs that Nexus compu
 | **Drex** | Every procurement decision (`nexus/decide.py::DrexProvider`): one `choice` question over candidate action IDs + one `choice` question for the reason code. Probabilities are shown in the UI. | Live when `NACE_API_KEY` is set: `POST https://console.nace.ai/v1/systemone`, model `drex-max-v1.1` |
 | **NDI** | Supplier quotes, emails and delay notices: NDI Extract with a JSON Schema and citations via `nace-sdk` (`nexus/documents.py::ndi_extract`), cached by content hash. | Live when `NACE_API_KEY` is set; on any NDI error the UI shows the error and uses a clearly labeled local regex extractor |
 | **DeepInfra** | Hosts the comparison System 2 LLM for the benchmark (`LLMProvider`). | Live when `SYSTEM2_MODEL` set |
-| **Intern** | See "Intern usage" below. | Fill in only what was actually done |
+| **Intern** | Coding agent for one script, `scripts/threshold_sweep.py` (see "Intern usage"). | Used once, headlessly; not part of the running product |
 
 ## Run it
 
@@ -124,10 +124,22 @@ Honest limitations: 18 cases is a small sample; the planning dates are simulated
 
 ## Intern usage
 
-<!-- Replace with what you actually did, e.g.:
-Intern version: `intern --version` → X.Y.Z
-Used for: `intern "add a unit test that ..."` which produced tests/test_intern.py (commit abc123).
-Do not claim usage that did not happen. -->
+* **Version:** `intern-agent` 0.30.1 (installed from `github.com/nace-ai/intern` at commit `e4e32d5`), run headlessly with `--system1 drex-latest --system2 deepinfra/Qwen/Qwen3.8-27B`.
+* **What Intern wrote:** `scripts/threshold_sweep.py`, from a single prompt describing the analysis (see the commit "Add hybrid threshold sweep"). It reads the final benchmark results and recomputes the hybrid's escalation rate and accuracy at different confidence thresholds, with no API calls.
+* **What Intern did not write:** the rest of the code base, tests, README and slides were written with another AI coding assistant (Claude) and reviewed by the team. Intern is not used inside the running product.
+
+Output of `python scripts/threshold_sweep.py` on the final run:
+
+| Threshold | Escalation rate | Hybrid accuracy |
+|---|---|---|
+| 0.4 | 0% | 78% |
+| 0.5 | 6% | 83% |
+| 0.6 | 22% | 94% |
+| 0.7 | 39% | 94% |
+| 0.8 | 44% | 94% |
+| 0.9 | 61% | 94% |
+
+On these 18 cases, 0.6 is the lowest threshold that reaches the LLM's accuracy; raising it further only sends more decisions to the LLM without changing accuracy. This is an in-sample analysis of one run, not a tuned or validated setting.
 
 ## Future work
 
@@ -142,6 +154,7 @@ nexus/config.py        env-based settings (no secrets in code)
 nexus/scenario.py      scenario: historical demand + simulated supplier terms
 nexus/history.py       M5 demand loader
 scripts/fetch_m5.py    downloads M5 and extracts the 3-item subset
+scripts/threshold_sweep.py  hybrid threshold analysis (written with Intern)
 nexus/planning.py      forecast, projection, candidates, validator
 nexus/documents.py     NDI adapter + labeled local fallback, delay-notice events
 nexus/decide.py        Drex / LLM / rule providers (one interface)

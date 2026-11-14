@@ -39,6 +39,7 @@ slide("Architecture", [
     "Candidate actions: BUY / SPLIT / EXPEDITE / WAIT / REQUEST_INFO / ESCALATE",
     "Validator removes hard-invalid options (MOQ, pack, capacity, quote, shelf life, storage, budget, duplicates)",
     "Drex: one choice question over allowed action IDs + reason code, with probabilities",
+    "Intern (0.30.1, Drex + Qwen3.8-27B) wrote the threshold-sweep analysis script; other code used another assistant",
     "Model output can never override validation; purchases need approval (simulated ERP)"], 20)
 slide("Worked example: a delay notice", [
     "Day 0: product P1 covered by PO-1001 (600 cases, arriving day 5) -> WAIT",
