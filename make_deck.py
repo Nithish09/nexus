@@ -121,7 +121,7 @@ box(s, 0.8, 1.0, 4.2, 0.42, TEAL)
 text(s, 0.8, 1.05, 4.2, 0.4, "DREXATHON 2026  ·  APEX PREDATOR", 11, BG, True, PP_ALIGN.CENTER)
 text(s, 0.8, 1.9, 6.6, 1.4, "Nexus", 80, bold=True)
 text(s, 0.8, 3.3, 6.4, 1.2, "Supply-chain purchasing decisions, made by Drex and checked by rules.", 24, MUTE)
-text(s, 0.8, 4.9, 6.4, 1.6, [f"Drex vs {LLM_NAME}: {speed:.1f}x faster, ~{cheap:.0f}x cheaper.",
+text(s, 0.8, 4.9, 6.4, 1.6, [f"Drex vs {LLM_NAME}: {speed:.1f}x faster, ~{cheap:.0f}x cheaper per decision.",
                              f"Drex + {LLM_NAME} on {H['escalation_rate']:.0%} of decisions: same accuracy as {LLM_NAME} alone."],
      18, TEAL, True)
 text(s, 0.8, 6.7, 9, 0.4, "Real Walmart (M5) demand  ·  simulated supplier terms and inventory", 12, MUTE)
@@ -213,21 +213,27 @@ text(s, 7.0, 6.45, 5.6, 0.4, "In-sample, one run: 60% is the lowest setting that
 EXP = Path("results/benchmark_exploratory_drex_evidence.json")
 if EXP.exists():
     E = json.loads(EXP.read_text())["summary"]["drex-evidence"]
-    s = new("What we learned: let Drex judge evidence, let code do the math",
-            "Exploratory redesign, run on the same 18 cases after seeing their results. In-sample, not a held-out score.")
-    stat(s, 0.6, 1.95, 2.9, f"{round(E['accuracy'] * 18)}/18", "correct on the same 18 cases\n(in-sample)", TEAL)
-    stat(s, 3.7, 1.95, 2.9, f"{E['latency_ms_median']:.0f} ms", f"median per decision\n({LLM_NAME}: {L['latency_ms_median']:.0f} ms)", TEAL)
-    stat(s, 6.8, 1.95, 2.9, f"~{L['cost_usd_per_decision'] / E['cost_usd_per_decision']:.0f}x", f"cheaper than {LLM_NAME}\n(${E['cost_usd_per_decision']:.6f} per decision)", TEAL)
-    stat(s, 9.9, 1.95, 2.9, "0", f"calls to {LLM_NAME}", VIOLET)
+    BL = Path("results/benchmark_blind_N01_N10.json")
+    B = json.loads(BL.read_text())["summary"] if BL.exists() else None
+    s = new("The fix: Drex judges evidence, code does the math",
+            "Redesigned after the main run, then checked on 10 new cases with answers fixed in advance")
+    if B:
+        be, bl = B["drex-evidence"], B["llm"]
+        stat(s, 0.6, 1.95, 2.9, f"{round(be['accuracy'] * 10)}/10", f"on 10 blind cases\n({LLM_NAME}: {round(bl['accuracy'] * 10)}/10)", TEAL)
+        stat(s, 3.7, 1.95, 2.9, f"{bl['latency_ms_median'] / be['latency_ms_median']:.0f}x", f"faster than {LLM_NAME}\n({be['latency_ms_median']:.0f} ms vs {bl['latency_ms_median']:.0f} ms)", TEAL)
+        stat(s, 6.8, 1.95, 2.9, f"~{bl['cost_usd_per_decision'] / be['cost_usd_per_decision']:.0f}x", f"cheaper than {LLM_NAME}\n(${be['cost_usd_per_decision']:.6f} per decision)", TEAL)
+        stat(s, 9.9, 1.95, 2.9, f"{round(E['accuracy'] * 18)}/18", "on the original 18 cases\n(in-sample)", VIOLET)
+    else:
+        stat(s, 0.6, 1.95, 2.9, f"{round(E['accuracy'] * 18)}/18", "correct on the same 18 cases\n(in-sample)", TEAL)
     card(s, 0.6, 4.0, 3.9, 2.9, "Before: one big question",
          ["Drex chose among 6-7 options using five priority rules in a single pass.",
-          "It turned cautious whenever any option carried a warning: 14/18."], AMBER, 13)
+          "It turned cautious whenever any option carried a warning: 14/18, then 8/10 blind."], AMBER, 13)
     card(s, 4.72, 4.0, 3.9, 2.9, "After: one narrow question",
          ["“Does existing supply depend on a tentative or contradicted fact?”",
           "Drex answers that; code compares shortage and cost and picks the action."], TEAL, 13)
     card(s, 8.84, 4.0, 3.9, 2.9, "Read this carefully",
-         ["Drex's answer changes the outcome in the 4 cases where supply looks sufficient; code decides the rest.",
-          "Designed after seeing these cases. Needs new cases to validate."], RED, 13)
+         ["Small sample: 10 blind cases, written by the same team.",
+          "Drex's answer decided 5 of them (all correct, including 2 false-alarm traps); code decided the rest."], RED, 13)
 
 # 7 ---------------------------------------------------------------- honest limits
 s = new("What is real, what is simulated, what is next")

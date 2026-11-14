@@ -59,7 +59,7 @@ streamlit run app.py
 
 ## Benchmark
 
-`python benchmark.py` runs 18 cases (`nexus/cases.py`) through Drex, the comparison LLM and a rule baseline with the same candidates, the same allowed actions and the same validator. Each case's expected action is written down with its reasoning, independent of any model output. Six cases are `dev` and six `heldout`. The `heldout` results were seen once before an option-wording fix for EXPEDITE (which did not change any answer), so six more `fresh` cases (C13-C18) were added afterwards and never used for tuning. The hybrid threshold (0.6) was also chosen after seeing the first Drex run.
+`python benchmark.py` runs the original 18 cases (`nexus/cases.py`; add `--split blind` for the ten blind validation cases N01-N10) through Drex, the comparison LLM and a rule baseline with the same candidates, the same allowed actions and the same validator. Each case's expected action is written down with its reasoning, independent of any model output. Six cases are `dev` and six `heldout`. The `heldout` results were seen once before an option-wording fix for EXPEDITE (which did not change any answer), so six more `fresh` cases (C13-C18) were added afterwards and never used for tuning. The hybrid threshold (0.6) was also chosen after seeing the first Drex run.
 
 **Outcome scoring on real demand.** The `fresh` cases plan on M5 history that ends 14 days before the end of the data. Each chosen action is then replayed against the actual sales of those 14 days (never shown to the planner or the model) to get fill rate, unmet cases and total cost (spend + an assumed $30 per unmet case + $0.05 per case-day held). Only today's action is simulated, so REQUEST_INFO / ESCALATE count as no order placed.
 
@@ -125,9 +125,28 @@ After the final run we looked at why Drex alone trailed Opus 5.5. The main decis
 | Drex alone, original single question (same run) | 14/18 | 323 ms | $0.000029 | 0 |
 | Opus 5.5 alone (final run above) | 17/18 | 3,001 ms | $0.0079 | 18 |
 
-**This is not a held-out result.** The design, including the code's selection logic, was written after seeing all 18 cases and every provider's answers, so 18/18 mostly shows that the design fits these cases. Drex's answer only changes the outcome in the four cases where existing supply covers demand on paper (C06, C11, C15, C16); it answered all four correctly, with clear separation (about 0.99 for the two uncertain cases, 0.31 or lower elsewhere). In the other 14 cases the action comes from code. Validating this needs new cases written before running it. The lesson we take from it: use the decision model for narrow evidence questions and let code do the arithmetic.
+**This is not a held-out result.** The design, including the code's selection logic, was written after seeing all 18 cases and every provider's answers, so 18/18 mostly shows that the design fits these cases. Drex's answer only changes the outcome in the four cases where existing supply covers demand on paper (C06, C11, C15, C16); it answered all four correctly, with clear separation (about 0.99 for the two uncertain cases, 0.31 or lower elsewhere). In the other 14 cases the action comes from code. We then validated it on new cases written before running it; see the next section. The lesson we take from it: use the decision model for narrow evidence questions and let code do the arithmetic.
 
-Run history kept in `results/`: `benchmark_run1_*` and `run2_*` (Drex on C01-C12, before and after an EXPEDITE wording fix that changed no answers), `run3_*` (Opus 5.5 valid; every Drex call returned HTTP 403 because the venue Wi-Fi was rate-limited by the API host, so its Drex and hybrid rows are invalid), `run4_*` (Drex on all 18 cases), the final run above, and the exploratory `drex-evidence` run. Only results produced by an actual run are committed.
+### Blind validation of the redesign (14:27 PT, `results/benchmark_blind_N01_N10.md`)
+
+To check whether `drex-evidence` only fit the 18 cases it was designed on, we wrote ten new cases (N01-N10) on a different product (P2: M5 item `FOODS_3_586`, different suppliers), fixed their expected answers, committed them (`a88a263`), and then ran every provider once. No prompt, threshold or code was changed afterwards.
+
+| Provider | Blind accuracy (10) | Median latency | Est. cost / decision |
+|---|---|---|---|
+| **`drex-evidence`** (Drex judges evidence, code picks) | **10/10** | 338 ms | $0.000014 |
+| Opus 5.5 alone | 10/10 | 2,467 ms | $0.0073 |
+| Hybrid (Drex, Opus under 0.6 confidence) | 9/10 | 348 ms | $0.0009 |
+| Drex alone, single question | 8/10 | 415 ms | $0.000027 |
+| Rule baseline | 8/10 | ~0 ms | $0 |
+
+* On these ten cases `drex-evidence` matched Opus 5.5's accuracy at about 7x lower median latency and about 530x lower estimated cost, with no LLM calls.
+* Drex's evidence answer decided five of the ten cases (N02-N05, N09) and was right in all five, including two written to tempt a false alarm (a note confirming the order is on schedule; a tentative remark about next quarter's price). Code decided the other five.
+* The original single-question Drex repeated its earlier failure mode (REQUEST_INFO on N06 and N07 where a verified option existed). The hybrid fixed N06 by escalation but not N07, where Drex was confidently wrong (0.83).
+* The rule baseline missed the two cases that turn on evidence (N03, N09).
+
+Limits: ten cases is a small sample, they were written by the same team that designed the method, and five of them are decided by code alone. This supports the design; it does not prove it.
+
+Run history kept in `results/`: `benchmark_run1_*` and `run2_*` (Drex on C01-C12, before and after an EXPEDITE wording fix that changed no answers), `run3_*` (Opus 5.5 valid; every Drex call returned HTTP 403 because the venue Wi-Fi was rate-limited by the API host, so its Drex and hybrid rows are invalid), `run4_*` (Drex on all 18 cases), the final run above, the exploratory `drex-evidence` run, and the blind validation run. Only results produced by an actual run are committed.
 
 Honest limitations: 18 cases is a small sample; the planning dates are simulated (2016 sales history is replayed as recent demand); the rule baseline is strong here because candidate generation does most of the arithmetic — the decision layer matters most in evidence cases (conflicts, tentative commitments). The comparison model is named by its exact ID in every table.
 
