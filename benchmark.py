@@ -15,7 +15,9 @@ import json
 import statistics
 from pathlib import Path
 
-from nexus.cases import CASES
+from nexus.cases import CASES as ALL_CASES
+
+CASES = list(ALL_CASES)
 from nexus.decide import get_provider
 from nexus.planner import plan_product
 
@@ -131,7 +133,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--providers", nargs="+", default=["drex", "llm", "hybrid", "rule-baseline"])
     ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--split", default=None, help="only run cases of this split: dev, heldout, fresh or blind")
     a = ap.parse_args()
+    if a.split:
+        CASES[:] = [c for c in ALL_CASES if c[3] == a.split]
+    else:
+        CASES[:] = [c for c in ALL_CASES if c[3] != "blind"]  # default = the original 18 cases
     res = run(a.providers, a.repeats)
     OUT.mkdir(exist_ok=True)
     (OUT / "benchmark.json").write_text(json.dumps(res, indent=2))

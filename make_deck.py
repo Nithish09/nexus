@@ -209,6 +209,26 @@ for i, r_ in enumerate(rows):
     yy += 0.55
 text(s, 7.0, 6.45, 5.6, 0.4, "In-sample, one run: 60% is the lowest setting that reaches the LLM's accuracy.", 11, MUTE)
 
+# 6b --------------------------------------------------------------- exploratory redesign
+EXP = Path("results/benchmark_exploratory_drex_evidence.json")
+if EXP.exists():
+    E = json.loads(EXP.read_text())["summary"]["drex-evidence"]
+    s = new("What we learned: let Drex judge evidence, let code do the math",
+            "Exploratory redesign, run on the same 18 cases after seeing their results. In-sample, not a held-out score.")
+    stat(s, 0.6, 1.95, 2.9, f"{round(E['accuracy'] * 18)}/18", "correct on the same 18 cases\n(in-sample)", TEAL)
+    stat(s, 3.7, 1.95, 2.9, f"{E['latency_ms_median']:.0f} ms", f"median per decision\n({LLM_NAME}: {L['latency_ms_median']:.0f} ms)", TEAL)
+    stat(s, 6.8, 1.95, 2.9, f"~{L['cost_usd_per_decision'] / E['cost_usd_per_decision']:.0f}x", f"cheaper than {LLM_NAME}\n(${E['cost_usd_per_decision']:.6f} per decision)", TEAL)
+    stat(s, 9.9, 1.95, 2.9, "0", f"calls to {LLM_NAME}", VIOLET)
+    card(s, 0.6, 4.0, 3.9, 2.9, "Before: one big question",
+         ["Drex chose among 6-7 options using five priority rules in a single pass.",
+          "It turned cautious whenever any option carried a warning: 14/18."], AMBER, 13)
+    card(s, 4.72, 4.0, 3.9, 2.9, "After: one narrow question",
+         ["“Does existing supply depend on a tentative or contradicted fact?”",
+          "Drex answers that; code compares shortage and cost and picks the action."], TEAL, 13)
+    card(s, 8.84, 4.0, 3.9, 2.9, "Read this carefully",
+         ["Drex's answer changes the outcome in the 4 cases where supply looks sufficient; code decides the rest.",
+          "Designed after seeing these cases. Needs new cases to validate."], RED, 13)
+
 # 7 ---------------------------------------------------------------- honest limits
 s = new("What is real, what is simulated, what is next")
 card(s, 0.6, 1.8, 3.9, 3.3, "Real", ["Walmart daily sales (M5 dataset), 3 items, 4 California stores.",
@@ -217,13 +237,12 @@ card(s, 0.6, 1.8, 3.9, 3.3, "Real", ["Walmart daily sales (M5 dataset), 3 items,
 card(s, 4.72, 1.8, 3.9, 3.3, "Simulated", ["Supplier quotes, prices, lead times, inventory, orders, documents.",
                                           "Product names are illustrative.",
                                           "Cost penalties in outcome scoring are assumptions."], AMBER, 13)
-card(s, 8.84, 1.8, 3.9, 3.3, "Limits", ["18 cases, one repeat: a small sample.",
-                                       "The 60% threshold was chosen after the first Drex run; two cases sit at the line.",
-                                       "Costs are estimates from token counts and list prices."], RED, 13)
+card(s, 8.84, 1.8, 3.9, 3.3, "Next", ["Multi-location transfers and receipt tracking.",
+                                     "More M5 items and stores, larger case set.",
+                                     "Lead-time uncertainty scenarios."], VIOLET, 13)
 text(s, 0.6, 5.4, 12.2, 0.5, "Built with", 14, MUTE, True)
 text(s, 0.6, 5.8, 12.2, 1.2, ["Drex Max v1.1 (every decision)  ·  NDI Extract via nace-sdk (supplier documents)  ·  DeepInfra (" + LLM_NAME + ")  ·  "
-                              "Intern 0.30.1 (threshold-sweep script)",
-                              "Next: multi-location transfers, receipt tracking, more M5 items, lead-time uncertainty."], 14)
+                              "Intern 0.30.1 (threshold-sweep script)"], 14)
 
 Path("slides").mkdir(exist_ok=True)
 prs.save("slides/Nexus_Drexathon.pptx")

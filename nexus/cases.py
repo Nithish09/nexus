@@ -155,6 +155,81 @@ def c18_waste_or_unverified():
     return scn
 
 
+# ---- Blind validation set: written AFTER the drex-evidence design was frozen, on a different product
+# (P2, M5 item FOODS_3_586, different suppliers). Expected answers were fixed before any model saw them,
+# and no prompt, threshold or code was changed after they were run.
+def _base2(on_hand=150, reserved=10, hold=20) -> Scenario:
+    scn = base_scenario()
+    scn.products = [scn.product("P2")]
+    p = scn.product("P2")
+    p.on_hand, p.reserved, p.quality_hold = on_hand, reserved, hold
+    p.demand_history, p.demand_source, p.actual_demand = demand_for("P2", holdout=True)
+    return scn
+
+
+def n01_plain_order():
+    return _base2()
+
+
+def n02_open_order_covers():
+    scn = _base2(on_hand=130)
+    scn.product("P2").open_orders = [OpenOrder("PO-2001", "S5", 300, 3, "acknowledged")]
+    return scn
+
+
+def n03_conflicting_arrival():
+    scn = n02_open_order_covers()
+    scn.conflicts = ["PO-2001: supplier portal shows delivery on day 3, the carrier's tracking page shows day 9"]
+    return scn
+
+
+def n04_confirmed_on_schedule():
+    scn = n02_open_order_covers()
+    scn.facts = [{"source_id": "EMAIL-S5-41", "field": "shipment_status", "value": "on schedule", "status": "confirmed",
+                  "excerpt": "PO-2001 left our dock this morning; carrier confirms delivery on day 3 as planned."}]
+    return scn
+
+
+def n05_irrelevant_tentative_note():
+    scn = n02_open_order_covers()
+    scn.facts = [{"source_id": "EMAIL-S6-12", "field": "future_price", "value": "may rise", "status": "tentative",
+                  "excerpt": "Heads up: our list price for next quarter may go up a little, we will confirm in January."}]
+    return scn
+
+
+def n06_harmful_delay():
+    scn = _base2(on_hand=130)
+    scn.product("P2").open_orders = [OpenOrder("PO-2001", "S5", 300, 7, "delayed")]
+    return scn
+
+
+def n07_hold_might_be_released():
+    scn = _base2(on_hand=310, hold=200)
+    scn.facts = [{"source_id": "QA-NOTE-7", "field": "hold_release", "value": "possible", "status": "tentative",
+                  "excerpt": "The 200 cases on quality hold might be released tomorrow if the lab result is clean."}]
+    return scn
+
+
+def n08_expired_cheaper_quote():
+    scn = _base2(on_hand=190)
+    scn.product("P2").supplier("S4").quote_valid_until_day = -1
+    return scn
+
+
+def n09_supplier_not_sure():
+    scn = n02_open_order_covers()
+    scn.facts = [{"source_id": "EMAIL-S5-44", "field": "ship_confidence", "value": "uncertain", "status": "tentative",
+                  "excerpt": "We think PO-2001 can still ship this week but the bottling line is down; "
+                             "we cannot promise the day-3 delivery yet."}]
+    return scn
+
+
+def n10_budget_too_small():
+    scn = _base2()
+    scn.budget_usd = 2000
+    return scn
+
+
 CASES = [
     # id, builder, expected, split, why
     ("C01", c01_normal, "BUY:S1", "dev", "Cheapest compliant order that covers demand; S3 capacity unverified."),
@@ -183,4 +258,17 @@ CASES = [
      "Expediting still leaves a shortage; a verified bridge order removes it."),
     ("C18", c18_waste_or_unverified, "REQUEST_INFO", "fresh",
      "The only verified option mostly expires and the alternative is unconfirmed; there is time to confirm."),
+    ("N01", n01_plain_order, "BUY:S4", "blind", "S4 is the cheapest verified supplier that arrives before stock runs out."),
+    ("N02", n02_open_order_covers, "WAIT", "blind", "An acknowledged open order covers demand; nothing questions it."),
+    ("N03", n03_conflicting_arrival, "REQUEST_INFO", "blind", "Two sources disagree on when the covering order arrives."),
+    ("N04", n04_confirmed_on_schedule, "WAIT", "blind", "The only new fact confirms the order is on schedule."),
+    ("N05", n05_irrelevant_tentative_note, "WAIT", "blind",
+     "A tentative note about next quarter's price does not affect whether current supply is adequate."),
+    ("N06", n06_harmful_delay, "EXPEDITE:PO-2001", "blind", "The delayed order causes a gap that expediting closes cheaply."),
+    ("N07", n07_hold_might_be_released, "BUY:S4", "blind",
+     "Stock on hold cannot be counted on a 'might be released'; order from a verified supplier."),
+    ("N08", n08_expired_cheaper_quote, "BUY:S5", "blind",
+     "S4's quote expired; S5 is the cheapest remaining verified supplier and still arrives before stock runs out."),
+    ("N09", n09_supplier_not_sure, "REQUEST_INFO", "blind", "The supplier itself will not commit to the covering delivery."),
+    ("N10", n10_budget_too_small, "ESCALATE", "blind", "Every compliant order exceeds the budget."),
 ]

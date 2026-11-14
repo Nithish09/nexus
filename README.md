@@ -112,7 +112,22 @@ Caveats, stated plainly:
 * Costs are estimates: token counts x list prices ($0.04 per 1M input tokens for Drex as set in `.env`; $4 / $20 per 1M input / output tokens for Opus 5.5 on DeepInfra). Latency is round trip from a phone hotspot and includes network time.
 * The comparison prompt for the LLM asks for a JSON answer only (no reasoning text); a different prompt could change its latency and cost.
 
-Run history kept in `results/`: `benchmark_run1_*` and `run2_*` (Drex on C01-C12, before and after an EXPEDITE wording fix that changed no answers), `run3_*` (Opus 5.5 valid; every Drex call returned HTTP 403 because the venue Wi-Fi was rate-limited by the API host, so its Drex and hybrid rows are invalid), `run4_*` (Drex on all 18 cases), and the final run above. Only results produced by an actual run are committed.
+### Exploratory redesign: Drex as evidence judge (in-sample, 13:51 PT, `results/benchmark_exploratory_drex_evidence.md`)
+
+After the final run we looked at why Drex alone trailed Opus 5.5. The main decision asks Drex to weigh six or seven options against five priority rules in one pass, and it turned cautious (REQUEST_INFO) whenever any option on the list carried a warning, even when a verified option existed. So we added a second provider, `drex-evidence` (`nexus/decide.py::DrexEvidenceProvider`):
+
+* Drex answers **one narrow yes/no question** per decision: does the adequacy of existing supply depend on a fact that is tentative, unconfirmed or contradicted in the state?
+* **Deterministic code** then compares shortage and cost across the validated options and picks the action; if supply looks sufficient but Drex flags the evidence, the action is REQUEST_INFO.
+
+| Provider | Accuracy (same 18 cases) | Median latency | Est. cost / decision | LLM calls |
+|---|---|---|---|---|
+| `drex-evidence` | 18/18 | 337 ms (186 ms model time) | $0.000013 | 0 |
+| Drex alone, original single question (same run) | 14/18 | 323 ms | $0.000029 | 0 |
+| Opus 5.5 alone (final run above) | 17/18 | 3,001 ms | $0.0079 | 18 |
+
+**This is not a held-out result.** The design, including the code's selection logic, was written after seeing all 18 cases and every provider's answers, so 18/18 mostly shows that the design fits these cases. Drex's answer only changes the outcome in the four cases where existing supply covers demand on paper (C06, C11, C15, C16); it answered all four correctly, with clear separation (about 0.99 for the two uncertain cases, 0.31 or lower elsewhere). In the other 14 cases the action comes from code. Validating this needs new cases written before running it. The lesson we take from it: use the decision model for narrow evidence questions and let code do the arithmetic.
+
+Run history kept in `results/`: `benchmark_run1_*` and `run2_*` (Drex on C01-C12, before and after an EXPEDITE wording fix that changed no answers), `run3_*` (Opus 5.5 valid; every Drex call returned HTTP 403 because the venue Wi-Fi was rate-limited by the API host, so its Drex and hybrid rows are invalid), `run4_*` (Drex on all 18 cases), the final run above, and the exploratory `drex-evidence` run. Only results produced by an actual run are committed.
 
 Honest limitations: 18 cases is a small sample; the planning dates are simulated (2016 sales history is replayed as recent demand); the rule baseline is strong here because candidate generation does most of the arithmetic — the decision layer matters most in evidence cases (conflicts, tentative commitments). The comparison model is named by its exact ID in every table.
 
@@ -157,7 +172,7 @@ scripts/fetch_m5.py    downloads M5 and extracts the 3-item subset
 scripts/threshold_sweep.py  hybrid threshold analysis (written with Intern)
 nexus/planning.py      forecast, projection, candidates, validator
 nexus/documents.py     NDI adapter + labeled local fallback, delay-notice events
-nexus/decide.py        Drex / LLM / rule providers (one interface)
+nexus/decide.py        Drex / LLM / hybrid / drex-evidence / rule providers (one interface)
 nexus/planner.py       planning run, verification, idempotent ledger
 nexus/cases.py         18 benchmark cases with expected actions
 data/docs/             simulated supplier documents

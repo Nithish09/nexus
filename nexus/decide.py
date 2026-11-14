@@ -252,6 +252,76 @@ class HybridProvider:
         return l
 
 
+# ------------------------------------------------------------ Drex as evidence judge, code as optimizer
+EVIDENCE_QUESTION = (
+    "Looking only at EXISTING supply (stock on hand and open orders already placed): does its adequacy depend on a "
+    "fact that is tentative, unconfirmed, or contradicted by another source in the state - for example conflicting "
+    "arrival dates for an open order, or a possible delay the supplier has not yet confirmed?")
+
+
+class DrexEvidenceProvider:
+    """Exploratory redesign: Drex answers one narrow evidence question; deterministic code compares the
+    numbers and picks the action. Added after the main benchmark run - results are in-sample."""
+    name = "drex-evidence"
+
+    def __init__(self):
+        self.drex = DrexProvider()
+        self.s = self.drex.s
+
+    @property
+    def live(self):
+        return self.drex.live
+
+    def decide(self, state: str, options: list[Candidate]) -> DecisionResult:
+        res = DecisionResult(provider=self.name, model=self.s.drex_model, live=self.live, action=None, reason=None)
+        if not self.live:
+            res.error = "Drex not configured"
+            return res
+        body = json.dumps({"model": self.s.drex_model, "state": state, "questions": {
+            "supply_uncertain": {"type": "noul", "instructions": EVIDENCE_QUESTION}}})
+        headers = {"Authorization": f"Bearer {self.s.drex_key}", "Content-Type": "application/json",
+                   "X-Nace-Client": "nexus-drexathon/1"}
+        t0 = time.perf_counter()
+        try:
+            wait = 0.2
+            for _ in range(4):
+                time.sleep(wait)
+                t0 = time.perf_counter()
+                r = requests.post(self.s.drex_url, data=body, timeout=self.s.timeout_s, headers=headers)
+                if r.status_code not in (403, 429, 500, 502, 503):
+                    break
+                wait = 30.0 if r.status_code in (403, 429) else 3.0
+            res.latency_ms = (time.perf_counter() - t0) * 1000
+            if r.status_code >= 400:
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
+            data = r.json()
+            p = float(data["answers"]["supply_uncertain"]["noul"])
+            res.input_tokens = (data.get("usage") or {}).get("input_tokens") or est_tokens(body)
+            res.model, res.model_ms = data.get("model") or res.model, data.get("evaluation_time_ms")
+        except Exception as exc:
+            res.latency_ms = (time.perf_counter() - t0) * 1000
+            res.error = f"{type(exc).__name__}: {str(exc)[:300]}"
+            return res
+        res.cost_usd = res.input_tokens / 1e6 * self.s.drex_price_per_m_input
+        res.probabilities, res.confidence = {"supply_uncertain": p}, max(p, 1 - p)
+        orders = [c for c in options if c.kind in ("BUY", "SPLIT", "EXPEDITE")]
+        clean = [c for c in orders if c.unmet < 1 and not c.warnings]
+        wait_opt = next(c for c in options if c.kind == "WAIT")
+        if wait_opt.unmet < 1:  # existing supply covers demand on paper
+            res.action, res.reason = (("REQUEST_INFO", "conflicting_evidence") if p >= 0.5
+                                      else ("WAIT", "existing_supply_sufficient"))
+        elif clean:
+            best = min(clean, key=lambda c: c.cost)
+            res.action = best.id
+            res.reason = {"SPLIT": "split_needed", "EXPEDITE": "recover_delayed_order"}.get(best.kind, "covers_demand_lowest_cost")
+        elif any(c.unmet < 1 for c in orders):
+            res.action, res.reason = "REQUEST_INFO", "unverified_commitment"
+        else:
+            res.action, res.reason = "ESCALATE", "no_compliant_plan"
+        res.valid_output = True
+        return res
+
+
 def get_provider(name: str):
     return {"drex": DrexProvider, "llm": LLMProvider, "hybrid": HybridProvider,
-            "rule-baseline": RuleBaseline}[name]()
+            "drex-evidence": DrexEvidenceProvider, "rule-baseline": RuleBaseline}[name]()
