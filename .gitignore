@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+results/nexus.db
+results/ndi_cache/
+.venv/
+data/history/
+data/m5_cache/
+_to_delete/
+HANDOFF.md

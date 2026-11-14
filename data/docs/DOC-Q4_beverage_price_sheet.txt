@@ -1,0 +1,5 @@
+COLD BREW SOURCING SHEET — Q4 (SIMULATED DOCUMENT)
+Product P2: Cold brew 12oz, case of 8
+Supplier S4 Bean & Barrel: $31.00/case, MOQ 60, multiple 20, lead time 4 days, capacity 300 (confirmed), shelf life on delivery 90 days, valid until 2026-11-28
+Supplier S5 Coastline Beverage: $29.50/case, MOQ 100, multiple 25, lead time 7 days, capacity 500 (confirmed), shelf life on delivery 120 days, valid until 2026-11-28
+Supplier S6 Metro Distributors: $33.80/case, MOQ 20, multiple 10, lead time 2 days, capacity 150 (confirmed), shelf life on delivery 75 days, valid until 2026-11-21

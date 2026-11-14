@@ -1,0 +1,7 @@
+NORTHFIELD DAIRY ALT — SHIPMENT UPDATE (SIMULATED DOCUMENT)
+Date: 2026-11-16
+Regarding PO: PO-1001 (Oat milk 1L, P1, 600 cases)
+Status: DELAYED due to filler line maintenance.
+New ship date: 2026-11-24
+Transit time: 3 days
+Note: the date above is the SHIP date from our plant, not the delivery date at your DC.

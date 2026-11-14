@@ -1,0 +1,11 @@
+VALLEY OATS CO. — PRICE QUOTATION (SIMULATED DOCUMENT)
+Quote ID: VO-2026-118      Issued: 2026-11-14
+Customer: Nexus Demo Grocer, DC-SF
+Product: Oat milk 1L, case of 6 (product P1)
+Unit price: $18.40 per case
+Minimum order quantity: 120 cases
+Order multiple: 24 cases (one pallet layer)
+Lead time: 3 days from PO to delivery at DC-SF
+Capacity this window: 400 cases (confirmed)
+Remaining shelf life on delivery: 30 days
+Quote valid until: 2026-11-26
